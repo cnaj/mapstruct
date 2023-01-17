@@ -21,7 +21,10 @@ import org.mapstruct.ap.internal.model.common.ModelElement;
 import org.mapstruct.ap.internal.model.common.Parameter;
 import org.mapstruct.ap.internal.model.common.ParameterBinding;
 import org.mapstruct.ap.internal.model.common.PresenceCheck;
+import org.mapstruct.ap.internal.model.common.PropertyAnnotationReflection;
+import org.mapstruct.ap.internal.model.common.SourceRHS;
 import org.mapstruct.ap.internal.model.common.Type;
+import org.mapstruct.ap.internal.model.common.TypeFactory;
 import org.mapstruct.ap.internal.model.source.Method;
 import org.mapstruct.ap.internal.model.source.builtin.BuiltInMethod;
 import org.mapstruct.ap.internal.util.Strings;
@@ -64,14 +67,17 @@ public class MethodReference extends ModelElement implements Assignment {
     private final boolean isConstructor;
     private final boolean isMethodChaining;
 
+    private PropertyAnnotationReflection propertyAnnotationReflection;
+    private List<Type> thrownByReflection = Collections.emptyList();
+
     /**
      * Creates a new reference to the given method.
      *
-     * @param method the target method of the reference
-     * @param declaringMapper the method declaring the mapper; {@code null} if the current mapper itself
+     * @param method             the target method of the reference
+     * @param declaringMapper    the method declaring the mapper; {@code null} if the current mapper itself
      * @param providingParameter The parameter providing the mapper, or {@code null} if the method is defined by the
-     *            mapper itself or by {@code declaringMapper}.
-     * @param parameterBindings the parameter bindings of this method reference
+     *                           mapper itself or by {@code declaringMapper}.
+     * @param parameterBindings  the parameter bindings of this method reference
      */
     protected MethodReference(Method method, MapperReference declaringMapper, Parameter providingParameter,
                               List<ParameterBinding> parameterBindings) {
@@ -216,8 +222,24 @@ public class MethodReference extends ModelElement implements Assignment {
         return sourceParameters;
     }
 
+    public void setAssignment(Assignment assignment, TypeFactory typeFactory) {
+        setAssignment( assignment );
+        if ( !( assignment instanceof SourceRHS ) ) {
+            return;
+        }
+
+        this.propertyAnnotationReflection = ( (SourceRHS) assignment ).getPropertyAnnotationReflection();
+
+        for ( ParameterBinding param : parameterBindings ) {
+            if ( param.isSourceAnnotation() ) {
+                thrownByReflection = Collections.singletonList(
+                    typeFactory.getType( ReflectiveOperationException.class ) );
+            }
+        }
+    }
+
     @Override
-    public void setAssignment( Assignment assignment ) {
+    public void setAssignment(Assignment assignment) {
         this.assignment = assignment;
     }
 
@@ -301,6 +323,7 @@ public class MethodReference extends ModelElement implements Assignment {
                 imported.addAll( methodToChain.getImportTypes() );
             }
         }
+        imported.addAll( thrownByReflection );
 
         return imported;
     }
@@ -315,8 +338,8 @@ public class MethodReference extends ModelElement implements Assignment {
             for ( MethodReference methodToChain : methodsToChain ) {
                 exceptions.addAll( methodToChain.getThrownTypes() );
             }
-
         }
+        exceptions.addAll( thrownByReflection );
         return exceptions;
     }
 
@@ -364,8 +387,12 @@ public class MethodReference extends ModelElement implements Assignment {
         return parameterBindings;
     }
 
-    public Type inferTypeWhenEnum( Type type ) {
-        if ( "java.lang.Enum".equals( type.getFullyQualifiedName()  ) ) {
+    public PropertyAnnotationReflection getPropertyAnnotationReflection() {
+        return this.propertyAnnotationReflection;
+    }
+
+    public Type inferTypeWhenEnum(Type type) {
+        if ( "java.lang.Enum".equals( type.getFullyQualifiedName() ) ) {
             return type.getTypeParameters().get( 0 );
         }
         else {

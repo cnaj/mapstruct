@@ -38,7 +38,7 @@
 <#macro arguments>
     <#list parameterBindings as param>
         <#if param.targetType>
-            <#-- a class is passed on for casting, see @TargetType -->
+        <#-- a class is passed on for casting, see @TargetType -->
             <@includeModel object=inferTypeWhenEnum( ext.targetType ) raw=true/>.class<#t>
         <#elseif param.mappingTarget>
             <#if ext.targetBeanName??>${ext.targetBeanName}<#else>${param.variableName}</#if><#if ext.targetReadAccessorName??>.${ext.targetReadAccessorName}</#if><#t>
@@ -46,6 +46,9 @@
             ${param.variableName}<#t>
         <#elseif param.targetPropertyName>
             "${ext.targetPropertyName}"<#t>
+        <#elseif param.sourceAnnotation>
+            <@includeModel object=propertyAnnotationReflection
+            annotation=param.type.name/><#t>
         <#elseif param.sourceRHS??>
             <@_assignment assignmentToUse=param.sourceRHS/><#t>
         <#elseif assignment??>
